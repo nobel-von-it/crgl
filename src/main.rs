@@ -1,4 +1,6 @@
-use clap::{Arg, ArgAction, Command};
+use std::{env, process};
+
+use clap::{Arg, ArgAction, ArgMatches, Command};
 
 #[derive(Debug, Default)]
 struct ArgManager {
@@ -32,6 +34,11 @@ impl ArgManager {
         self.form_arg_flags(name, req, help)
             .action(ArgAction::SetTrue)
     }
+
+    #[allow(dead_code)]
+    fn form_arg_vec(&mut self, name: &'static str, req: bool, help: &'static str) -> Arg {
+        self.form_arg(name, req, help).num_args(0..)
+    }
 }
 
 fn new_subcommand(am: &mut ArgManager) -> Command {
@@ -39,11 +46,6 @@ fn new_subcommand(am: &mut ArgManager) -> Command {
         .about("Create a new project")
         .arg(am.form_arg("name", true, "The name of the project"))
         .arg(am.form_arg_flags("template", false, "The template to use"))
-        .arg(am.form_arg_flags(
-            "path",
-            false,
-            "The path to create the project in (defaults to current directory)",
-        ))
         .arg(
             am.form_bool_arg(
                 "git",
@@ -60,6 +62,27 @@ fn new_subcommand(am: &mut ArgManager) -> Command {
             am.form_bool_arg("lib", false, "Create a library project (defaults to false)")
                 .default_value("false"),
         )
+        .arg(am.form_arg_flags(
+            "edition",
+            false,
+            "The edition of the project (defaults to 2024)",
+        ))
+        .arg(
+            am.form_bool_arg("quiet", false, "Quiet mode (defaults to true)")
+                .default_value("true"),
+        )
+}
+
+fn add_subcommand(am: &mut ArgManager) -> Command {
+    Command::new("add")
+        .about("Add a dependency to the project")
+        .arg(am.form_arg("name", true, "The name of the dependency"))
+        .arg(am.form_arg_flags("version", false, "The version of the dependency"))
+        .arg(am.form_arg_flags(
+            "features",
+            false,
+            "Features to add to the dependency (comma separated)",
+        ))
 }
 
 fn command(am: &mut ArgManager) -> Command {
@@ -67,6 +90,120 @@ fn command(am: &mut ArgManager) -> Command {
         .subcommand_required(true)
         .about("Cargo Limp Like Templater")
         .subcommand(new_subcommand(am))
+        .subcommand(add_subcommand(am))
+}
+
+trait Parser {
+    fn parse_args(matches: &ArgMatches) -> Self;
+}
+
+enum CrglCommand {
+    New(NewCommand),
+    Add(AddCommand),
+}
+
+impl Parser for CrglCommand {
+    fn parse_args(matches: &ArgMatches) -> Self {
+        match matches.subcommand() {
+            Some(("new", sub_matches)) => CrglCommand::New(NewCommand::parse_args(sub_matches)),
+            Some(("add", sub_matches)) => CrglCommand::Add(AddCommand::parse_args(sub_matches)),
+            _ => todo!(),
+        }
+    }
+}
+
+impl CrglCommand {
+    fn execute(&self) {
+        match self {
+            CrglCommand::New(new_command) => {
+                // TODO: Cargo wrapper
+                // Transfer args to cargo
+                let mut cargo_command = process::Command::new("cargo");
+
+                cargo_command.arg("new");
+
+                if new_command.quiet {
+                    cargo_command.arg("--quiet");
+                }
+
+                if !new_command.git {
+                    cargo_command.arg("--vcs=none");
+                }
+
+                if new_command.bin {
+                    cargo_command.arg("--bin");
+                }
+
+                if new_command.lib {
+                    cargo_command.arg("--lib");
+                }
+
+                if let Some(edition) = &new_command.edition {
+                    cargo_command.arg("--edition").arg(edition);
+                }
+
+                cargo_command.arg(&new_command.name);
+
+                cargo_command.spawn().unwrap().wait().unwrap();
+
+                // TODO:
+            }
+            CrglCommand::Add(add_command) => todo!(),
+        }
+    }
+}
+
+struct NewCommand {
+    name: String,
+    edition: Option<String>,
+
+    bin: bool,
+    lib: bool,
+    git: bool,
+    quiet: bool,
+
+    template_name: Option<String>,
+}
+
+impl Parser for NewCommand {
+    fn parse_args(matches: &ArgMatches) -> Self {
+        let name = matches.get_one::<String>("name").unwrap();
+        let template_name = matches.get_one::<String>("template");
+        let edition = matches.get_one::<String>("edition");
+        let bin = matches.get_flag("bin");
+        let lib = matches.get_flag("lib");
+        let git = matches.get_flag("git");
+        let quiet = matches.get_flag("quiet");
+
+        Self {
+            name: name.clone(),
+            template_name: template_name.cloned(),
+            edition: edition.cloned(),
+            bin,
+            lib,
+            git,
+            quiet,
+        }
+    }
+}
+
+struct AddCommand {
+    name: String,
+    version: Option<String>,
+    features: Option<String>,
+}
+
+impl Parser for AddCommand {
+    fn parse_args(matches: &ArgMatches) -> Self {
+        let name = matches.get_one::<String>("name").unwrap();
+        let version = matches.get_one::<String>("version");
+        let features = matches.get_one::<String>("features");
+        Self {
+            name: name.clone(),
+            version: version.cloned(),
+            features: features.cloned(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -108,6 +245,14 @@ impl Project {
 }
 
 fn main() {
-    let project = Project::parse_args();
-    println!("{:?}", project);
+    let mut am = ArgManager::default();
+    let matches = command(&mut am).get_matches();
+
+    let crgl_command = CrglCommand::parse_args(&matches);
+    crgl_command.execute();
+
+    // minimal test
+    // let args = env::args().skip(1).collect::<Vec<_>>();
+    // let mut cargo_test = process::Command::new("cargo").args(args).spawn().unwrap();
+    // cargo_test.wait().unwrap();
 }
