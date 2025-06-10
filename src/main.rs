@@ -148,7 +148,23 @@ impl CrglCommand {
 
                 // TODO:
             }
-            CrglCommand::Add(add_command) => todo!(),
+            CrglCommand::Add(add_command) => {
+                let mut cargo_command = process::Command::new("cargo");
+
+                cargo_command.arg("add");
+
+                if let Some(version) = &add_command.version {
+                    cargo_command.arg("--version").arg(version);
+                }
+
+                if let Some(features) = &add_command.features {
+                    cargo_command.arg("--features").arg(features);
+                }
+
+                cargo_command.arg(&add_command.name);
+
+                cargo_command.spawn().unwrap().wait().unwrap();
+            }
         }
     }
 }
