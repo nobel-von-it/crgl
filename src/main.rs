@@ -18,7 +18,7 @@ impl ArgManager {
             return short;
         }
 
-        unreachable!();
+        return name.chars().next().unwrap();
     }
 
     fn form_arg(&mut self, name: &'static str, req: bool, help: &'static str) -> Arg {
@@ -129,6 +129,7 @@ impl Parser for CrglCommand {
         match matches.subcommand() {
             Some(("new", sub_matches)) => CrglCommand::New(NewCommand::parse_args(sub_matches)),
             Some(("add", sub_matches)) => CrglCommand::Add(AddCommand::parse_args(sub_matches)),
+            Some(("init", sub_matches)) => CrglCommand::Init(InitCommand::parse_args(sub_matches)),
             _ => todo!(),
         }
     }
@@ -284,6 +285,28 @@ struct InitCommand {
     lib: bool,
 
     quiet: bool,
+}
+
+impl Parser for InitCommand {
+    fn parse_args(matches: &ArgMatches) -> Self {
+        let path = matches.get_one::<String>("path");
+        let edition = matches.get_one::<String>("edition");
+
+        let git = matches.get_flag("git");
+        let bin = matches.get_flag("bin");
+        let lib = matches.get_flag("lib");
+
+        let quiet = matches.get_flag("quiet");
+
+        Self {
+            path: path.cloned(),
+            edition: edition.cloned(),
+            git,
+            bin,
+            lib,
+            quiet,
+        }
+    }
 }
 
 #[derive(Debug)]
