@@ -85,12 +85,33 @@ fn add_subcommand(am: &mut ArgManager) -> Command {
         ))
 }
 
+fn init_subcommand(am: &mut ArgManager) -> Command {
+    Command::new("init")
+        .about("Initialize a new project")
+        .arg(am.form_arg("path", false, "The path to the project"))
+        .arg(am.form_bool_arg("git", false, "Initialize a git repository in the project"))
+        .arg(
+            am.form_bool_arg("bin", false, "Create a binary project")
+                .default_value("true"),
+        )
+        .arg(
+            am.form_bool_arg("lib", false, "Create a library project")
+                .default_value("false"),
+        )
+        .arg(am.form_arg_flags("edition", false, "The edition of the project"))
+        .arg(
+            am.form_bool_arg("quiet", false, "Quiet mode (defaults to true)")
+                .default_value("true"),
+        )
+}
+
 fn command(am: &mut ArgManager) -> Command {
     Command::new("crgl")
         .subcommand_required(true)
         .about("Cargo Limp Like Templater")
         .subcommand(new_subcommand(am))
         .subcommand(add_subcommand(am))
+        .subcommand(init_subcommand(am))
 }
 
 trait Parser {
@@ -100,6 +121,7 @@ trait Parser {
 enum CrglCommand {
     New(NewCommand),
     Add(AddCommand),
+    Init(InitCommand),
 }
 
 impl Parser for CrglCommand {
@@ -165,6 +187,37 @@ impl CrglCommand {
 
                 cargo_command.spawn().unwrap().wait().unwrap();
             }
+            CrglCommand::Init(init_command) => {
+                let mut cargo_command = process::Command::new("cargo");
+
+                cargo_command.arg("init");
+
+                if let Some(path) = &init_command.path {
+                    cargo_command.arg("--path").arg(path);
+                }
+
+                if let Some(edition) = &init_command.edition {
+                    cargo_command.arg("--edition").arg(edition);
+                }
+
+                if !init_command.git {
+                    cargo_command.arg("--vcs=none");
+                }
+
+                if init_command.bin {
+                    cargo_command.arg("--bin");
+                }
+
+                if init_command.lib {
+                    cargo_command.arg("--lib");
+                }
+
+                if init_command.quiet {
+                    cargo_command.arg("--quiet");
+                }
+
+                cargo_command.spawn().unwrap().wait().unwrap();
+            }
         }
     }
 }
@@ -220,6 +273,17 @@ impl Parser for AddCommand {
             features: features.cloned(),
         }
     }
+}
+
+struct InitCommand {
+    path: Option<String>,
+    edition: Option<String>,
+
+    git: bool,
+    bin: bool,
+    lib: bool,
+
+    quiet: bool,
 }
 
 #[derive(Debug)]
