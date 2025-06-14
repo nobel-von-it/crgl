@@ -1,6 +1,73 @@
-use std::process;
+use std::{
+    fs::{File, OpenOptions},
+    io, process,
+};
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
+
+struct FileManager;
+
+impl FileManager {
+    fn read_file(path: &str) -> io::Result<File> {
+        OpenOptions::new().read(true).open(path)
+    }
+    fn write_file(path: &str) -> io::Result<File> {
+        OpenOptions::new().write(true).create(true).open(path)
+    }
+}
+
+trait DependenciesLoader {
+    fn load(fm: &FileManager, path: &str) -> Self;
+    fn load_to(&mut self, fm: &FileManager, path: &str);
+}
+
+trait DependenciesSaver {
+    fn save(&self, fm: &FileManager, path: &str);
+}
+
+enum TemplateType {
+    CargoCommands(),
+    RonDependencies(),
+    JsonDependencies(),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CargoCommands {
+    commands: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RonDependencies {
+    dependencies: Vec<RonDependency>,
+}
+
+impl DependenciesLoader for RonDependencies {
+    fn load(fm: &FileManager, path: &str) -> Self {
+        serde_json::from_reader(fm.read_file(path).unwrap()).unwrap()
+    }
+    fn load_to(&mut self, fm: &FileManager, path: &str) {
+        *self = serde_json::from_reader(fm.read_file(path).unwrap()).unwrap();
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RonDependency {
+    name: String,
+    version: Option<String>,
+    features: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct JsonDependencies {
+    dependencies: Vec<JsonDependency>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct JsonDependency {
+    name: String,
+    version: Option<String>,
+    features: Option<Vec<String>>,
+}
 
 #[derive(Debug, Default, Clone)]
 struct ArgManager {
