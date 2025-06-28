@@ -4,14 +4,15 @@ use std::{
 };
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
+use serde::{Deserialize, Serialize};
 
 struct FileManager;
 
 impl FileManager {
-    fn read_file(path: &str) -> io::Result<File> {
+    fn read_file(&self, path: &str) -> io::Result<File> {
         OpenOptions::new().read(true).open(path)
     }
-    fn write_file(path: &str) -> io::Result<File> {
+    fn write_file(&self, path: &str) -> io::Result<File> {
         OpenOptions::new().write(true).create(true).open(path)
     }
 }
